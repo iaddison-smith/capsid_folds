@@ -20,41 +20,6 @@ kappa = np.array([0.01451757, 0.0229543 , 0.03246228, 0.04590859,
 
 molar_to_kappa = dict(zip(molar_data, kappa))
 
-def get_energy_data(results_file_path):
-    """
-    Read energy and distances from Pygbe results file, for 
-    a afm-tip example
-    -------
-    Inputs:
-        results_file_path: Pygbe results file
-    Return:
-        None
-    """
-    results_file = open(results_file_path,'r')
-    results_data = results_file.read().split('\n')
-    for line in results_data:
-        if 'Surface 0' in line:
-            surf = 0
-        elif 'Surface 1' in line:
-            surf = 1
-        elif 'box center' in line:
-            aux = line.split(': ')
-            if surf == 0:
-                line = aux[1].split(',')
-                r_surf1 = np.array([float(line[0]),float(line[1]),float(line[2])])
-            elif surf == 1:
-                line = aux[1].split(',')
-                r_surf2 = np.array([float(line[0]),float(line[1]),float(line[2])])
-    aux = results_data[-6].split('= ')
-    E_solv = float(aux[1].split(' ')[0])
-    aux = results_data[-5].split('= ')
-    E_surf = float(aux[1].split(' ')[0])
-    aux = results_data[-4].split('= ')
-    E_coul = float(aux[1].split(' ')[0])
-    results_file.close()
-    
-    return r_surf1, r_surf2, E_solv, E_surf, E_coul
-
 def readpqr(filename, N):
     """
     Read pqr-format file
@@ -99,7 +64,7 @@ def compute_force_qf(dphi, q, units='kcal'):
     from dphi.txt file and q charges array
     -------
     Inputs:
-        dphi: file .pqr with point-charge-radius format
+        dphi: file .txt with gradient of phi at charges positions
         q: number of solute charges present in filename
     Return:
         force: Array size (Nx3) with forces for solute charges
@@ -121,7 +86,7 @@ def compute_force_qf(dphi, q, units='kcal'):
 
     return factor*force, factor*force_magnitude, factor*total_force, factor*total_force_magnitude
 
-def compute_force_qf_zika(dir, units='kcal',fqf_calc=True):
+def compute_force_qf_zika(dir, pqr_path='pqr\\ZIKV_6CO8_aa_charge_vdw_addspace.pqr', units='kcal',fqf_calc=True):
     """
     Read from directory with results file to get 
     fixed charge forces for afm-zika case
@@ -138,12 +103,13 @@ def compute_force_qf_zika(dir, units='kcal',fqf_calc=True):
     fqf_mag = np.zeros(len(dir))
     dist = np.zeros((len(dir)))
     for j in range(len(dir)):
-        dist[j] = (dir[j].split('dist')[-1])
+        #Compute to every "j" distance
+        dist[j] = (dir[j].split('dist')[-1]) #split the dir and get distance(int) value
         if fqf_calc:
-            dphir_file = glob.glob(dir[j] + '\*dphir.txt')
-            dphir = np.loadtxt(dphir_file[0])
-            _, q, _, _, _,_ = readpqr('pqr\\ZIKV_6CO8_aa_charge_vdw_addspace.pqr',len(dphir))
-            _, _, fqf[j,:], fqf_mag[j] = compute_force_qf(dphir,q, units)
+            dphir_file = glob.glob(dir[j] + '\*dphir.txt')[0] #Search for dphir.txt file
+            dphir = np.loadtxt(dphir_file)
+            _, q, _, _, _,_ = readpqr(pqr_path,len(dphir))
+            _, _, fqf[j,:], fqf_mag[j] = compute_force_qf(dphir, q, units)
             np.savetxt(dir[j] + '\\fqf.txt', fqf[j,:])
         else:
             fqf[j,:] = np.loadtxt(dir[j] + '\\fqf.txt')
@@ -165,20 +131,22 @@ def get_boundary_forces(data_sim, molarity):
     # Use the first distance (2 Ang) to search boundary forces
     files = glob.glob(data_sim[str(molarity)][0]+'\*')
 
-    #Get only the bound files from files list
-    files_bound = [file for file in files if 'Bound' in file.split('\\')[-1].split('_')[0]]
+    #Search for 'Bound' in all files
+    files_bound = [file for file in files if 'Bound' in file.split('\\')[-1]]
+    #Split twice, one to get xxxxPlane string and other to get distance
     files_bound = sorted(files_bound, key=lambda x: int(x.split('_')[-1].split('Plane')[0]))
 
     fdb, fib = np.zeros((len(files_bound),3)), np.zeros((len(files_bound),3))
     j = 0
     factor = 69.467*4*np.pi*332.0636817823836 #factor to convert to pN
     for file in files_bound:
-        file_data = open(file,'r')
-        file_data = file_data.read().split('\n')
+        file_read = open(file,'r')
+        file_data = file_read.read().split('\n')
         #Dielectric boundary force
         fdb[j,:] = factor*np.array(file_data[-4].split(' '),dtype=np.float64)
         #Ionic boundary force
         fib[j,:] = factor*np.array(file_data[-2].split(' '),dtype=np.float64)
+        file_read.close()
         j += 1
 
     return fdb, fib
@@ -187,7 +155,7 @@ def get_boundary_forces(data_sim, molarity):
 def forces_MVM(d,B,A=0,k=1/6.8):
     return (A*np.exp(-2*k*d)+B*np.exp(-k*d))/(1-np.exp(-2*k*d))
 
-def get_data_sym(sym=None):
+def get_data_sym(sym=None,folder=None):
     """
     Get directory who has simulation data
     -------
@@ -207,8 +175,11 @@ def get_data_sym(sym=None):
     elif sym == 3:
         sim_data = glob.glob('ZikaSym3/*')
     else:
-        print('Error: symmetry not valid')
-        return None
+        if folder != None:
+            sim_data = glob.glob(folder+'/*')
+        else:
+            print('Error: symmetry not valid')
+            return None
     for dir in sim_data:
         molarity = dir.split('sysBunch')[1]
         data_sim[molarity] = glob.glob(dir+'/*')
@@ -218,6 +189,7 @@ def get_data_sym(sym=None):
     #sort data_sim value array by dist value
     for key, value in data_sim.items():
         data_sim[key] = sorted(value, key=lambda x: int(x.split('dist')[-1]))
+        
     return data_sim
 
 def plot_force_components(data_sim,molar,sym=0,fqf_calc=True):

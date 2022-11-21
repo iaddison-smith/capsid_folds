@@ -7,18 +7,6 @@ import zika_postprocess as zp
 plt.rcParams['xtick.labelsize']=8
 plt.rcParams['ytick.labelsize']=8
 
-data_sim,data_sim1,data_sim2,data_sim3 = zp.get_data_sym(sym=0), zp.get_data_sym(sym=1), zp.get_data_sym(sym=2), zp.get_data_sym(sym=3)
-
-
-import numpy
-from matplotlib import pyplot as plt
-from matplotlib import rcParams
-import os
-import glob
-import zika_postprocess as zp
-plt.rcParams['xtick.labelsize']=8
-plt.rcParams['ytick.labelsize']=8
-
 
 
 
@@ -27,8 +15,12 @@ plt.rcParams['ytick.labelsize']=8
 
 data_sim,data_sim1,data_sim2,data_sim3 = zp.get_data_sym(sym=0), zp.get_data_sym(sym=1), zp.get_data_sym(sym=2), zp.get_data_sym(sym=3)
 
-for molar in ['100','150']:
-    for sym_active in ['sym1','sym2','sym3']:
+for molar in ['40','100','150']:
+    for sym_active in ['sym1']:
+
+        print('Plots for')
+        print('symmetry',sym_active)
+        print('molar',molar)
 
         data_sim_selected = [data_sim1 if sym_active=='sym1' else data_sim2 if sym_active=='sym2' else data_sim3 if sym_active=='sym3' \
             else data_sim][0]
@@ -43,9 +35,6 @@ for molar in ['100','150']:
         f_tot_mag_386 = numpy.sqrt(numpy.sum(F_terms[0]**2)) # Total force magnitude at 2 A distance
         f_tot_xaxis_386 = F_terms[0][0] # Total force magnitude at 2 A distance
 
-
-        # case = 'sphere' #sphere, cone, cone_40_mM, cone_20_mM
-        # f_tot_mag_386, top_aa, top_aa_color = zp.select_case(case)
         dphi_386c = numpy.loadtxt(glob.glob(data_sim_selected[molar][0] + '\*dphir.txt')[0])   # d=0.2nm
         #dphi_390c = numpy.loadtxt(folder+'390/dphir.txt')   # d=0.6nm
         #dphi_394c = numpy.loadtxt(folder+'394/dphir.txt')   # d=1.0nm
